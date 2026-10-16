@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>慧穗云开票登录 · 需求说明</title>
+  <style>
+    :root {
+      --bg: #f3f5f7; --card: #fff; --ink: #1f1f1f; --sub: #595959; --line: #e6e8eb;
+      --lx: #08979c; --new: #cf1322; --ok: #237804; --wait: #ad6800;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-size: 14px; line-height: 1.6; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 64px; }
+    h1 { margin: 0; font-size: 26px; }
+    h2 { margin: 0 0 12px; font-size: 16px; }
+    h3 { margin: 16px 0 8px; font-size: 14px; }
+    a { color: #0958d9; }
+    .card { background: var(--card); border-radius: 12px; padding: 18px; margin-top: 16px; }
+    .label { font-size: 12px; color: var(--sub); margin: 0 0 8px; }
+    .pipe { display: flex; align-items: stretch; gap: 6px; }
+    .node { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fafafa; }
+    .node .who { font-size: 12px; color: var(--sub); }
+    .node b { display: block; margin-top: 2px; font-size: 13px; }
+    .node em { display: block; margin-top: 2px; font-style: normal; font-size: 12px; color: var(--sub); }
+    .arr { align-self: center; color: #bfbfbf; }
+    .node.hot { background: #fff7e6; border-color: #ffd591; }
+    .node.ok { background: #f6ffed; border-color: #b7eb8f; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { background: #fafafa; color: var(--sub); font-weight: 550; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .mark { display: inline-block; min-width: 36px; text-align: center; border-radius: 4px; font-size: 12px; padding: 0 6px; line-height: 20px; }
+    .mark.add { background: #fff1f0; color: #cf1322; }
+    .mark.keep { background: #f5f5f5; color: #595959; }
+    .mark.wait { background: #fff7e6; color: #ad6800; }
+    .url { word-break: break-all; }
+    .foot { margin: 8px 0 0; color: var(--sub); font-size: 12px; }
+    figure { margin: 12px 0 0; }
+    figure img { width: 100%; border: 1px solid var(--line); border-radius: 8px; display: block; }
+    figure.chat { max-width: 320px; }
+    figcaption { margin-top: 6px; color: var(--sub); font-size: 12px; }
+    ul { margin: 8px 0 0; padding-left: 18px; }
+    li { margin: 4px 0; }
+    @media (max-width: 860px) {
+      .pipe { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>慧穗云开票登录</h1>
+
+    <section class="card">
+      <h2>1. 需求背景</h2>
+      <p>开票时调用慧穗云。对方接口改造后，税局登录掉线会导致开票失败。本次对接新的登录接口，在掉线时把登录补上，开票继续走现有接口。</p>
+      <p class="foot">慧穗云底层每隔 3 小时会自动登录税局。中间掉线时，由我们调接口触发登录，验证码由慧穗云底层自动接收并完成登录。</p>
+    </section>
+
+    <section class="card">
+      <h2>2. 供应商说明</h2>
+      <figure class="chat">
+        <img src="assets/huisuiyun-login/01-wechat.png" alt="慧穗云关于登录掉线和存活状态查询的说明" />
+        <figcaption>慧穗云：掉线后触发登录；约每 3 分钟查一次授权存活状态，无效则调用数电同步自主登录。</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/huisuiyun-login/02-api-doc.png" alt="数电授权存活状态查询和数电同步自主登录在文档中的位置" />
+        <figcaption>文档位置：数电账户 → 数电自主登录。本次用框出的两个接口。</figcaption>
+      </figure>
+    </section>
+
+    <section class="card">
+      <h2>3. 需求说明</h2>
+      <p class="label">开票前先确认销项登录还在。无效就先登录，再走现有开票。</p>
+      <div class="pipe">
+        <div class="node"><div class="who">约每 3 分钟</div><b>查授权存活状态</b><em>销项。查询本身不登录</em></div>
+        <div class="arr">→</div>
+        <div class="node ok"><div class="who">data = 1</div><b>授权有效</b><em>直接开票</em></div>
+        <div class="arr">→</div>
+        <div class="node hot"><div class="who">data = 0</div><b>同步自主登录</b><em>登录成功后再开票</em></div>
+      </div>
+      <ul>
+        <li>同一公司 3 分钟内最多查 1 次。销项和进项共用这个次数。返回「调用过于频繁」时，这一轮不再查。</li>
+        <li>开票接口本身不改。登录没成功时，这笔不记成已开票。</li>
+      </ul>
+      <p class="foot">登录类型用账密短信还是扫码，待确认。文档里登录还可能返回「需上传短信验证码」或「需扫码」；供应商说明是验证码由底层自动接收。这两种要不要再调后续接口，待确认。</p>
+    </section>
+
+    <section class="card">
+      <h2>4. 接口</h2>
+      <p>文档入口 <a href="https://cdk.huisuiyun.com/">https://cdk.huisuiyun.com/</a></p>
+      <p>访问账号 <code>cdkadmin</code>，密码 <code>3g6wax7ECvs1PycHXKtoZ02BMm59R2N4</code></p>
+      <table>
+        <thead><tr><th></th><th>接口</th><th>本次</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>查状态</td>
+            <td><a href="https://cdk.huisuiyun.com/docs/%E6%95%B0%E7%94%B5%E8%B4%A6%E6%88%B7/%E6%95%B0%E7%94%B5%E8%87%AA%E4%B8%BB%E7%99%BB%E5%BD%95/autonomous-allElectric-login-status/">数电授权存活状态查询-同步</a><br /><code>POST /api/v2/agent/cdk/allElectric/obtainLoginStatus</code></td>
+            <td><span class="mark add">新增调用</span></td>
+          </tr>
+          <tr>
+            <td>登录</td>
+            <td><a href="https://cdk.huisuiyun.com/docs/%E6%95%B0%E7%94%B5%E8%B4%A6%E6%88%B7/%E6%95%B0%E7%94%B5%E8%87%AA%E4%B8%BB%E7%99%BB%E5%BD%95/autonomous-allElectric-sync-login/">数电同步自主登录-同步</a><br /><code>POST /api/v2/agent/cdk/allElectric/autonomous/sync/login</code></td>
+            <td><span class="mark add">新增调用</span></td>
+          </tr>
+          <tr>
+            <td>开票</td>
+            <td>现有慧穗云开票接口</td>
+            <td><span class="mark keep">不改</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>销项怎么传</h3>
+      <table>
+        <thead><tr><th></th><th>字段</th><th>取值</th></tr></thead>
+        <tbody>
+          <tr><td>查状态</td><td><code>businessType</code></td><td><code>0</code> 销项。<code>1</code> 是进项，开票不用。</td></tr>
+          <tr><td>查状态</td><td>返回 <code>data</code></td><td><code>1</code> 授权有效。<code>0</code> 未授权或已失效。查询成功时 <code>code</code> 为 200。</td></tr>
+          <tr><td>登录</td><td><code>businessType</code></td><td><code>1</code> 销项。<code>2</code> 是进项。和查状态的编码不同。</td></tr>
+          <tr><td>登录</td><td><code>loginType</code></td><td><span class="mark wait">待确认</span> <code>0</code> 账密短信，<code>1</code> 扫码。</td></tr>
+          <tr><td>登录</td><td>返回 <code>data.status</code></td><td><code>1</code> 登录成功，<code>2</code> 登录失败，<code>3</code> 需短信验证码，<code>4</code> 需税局 App 扫码。</td></tr>
+        </tbody>
+      </table>
+      <p class="foot">请求头沿用现有慧穗云调用：<code>X-Access-Token</code> 必填。ISV 调用时 <code>X-Tax-Token</code> 填操作公司税号。登录的前置条件是该公司默认登记的登录方式为自主授权。</p>
+    </section>
+  </div>
+</body>
+</html>
